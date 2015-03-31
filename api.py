@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from flask import Flask, request
 from rootpy.io import root_open
+import json
 
 app = Flask(__name__)
 
@@ -14,10 +15,10 @@ def compare():
         cur_file = root_open(cur_hist)
         cur_hist = cur_file.get(all_paths.encode('ascii','ignore'))
         base_hist = cur_file.get(all_paths.encode('ascii','ignore'))
-        s = cur_hist.KolmogorovTest(base_hist)
+        p_value = cur_hist.KolmogorovTest(base_hist)
+        return json.dumps({'rc': 0, 'message': '', 'distance': p_value})
     except Exception, s:
-        return s
-    return str(s)
+        return json.dump({'rc': 1, 'message': s})
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
