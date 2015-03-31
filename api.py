@@ -18,7 +18,7 @@ def compare():
         p_value = cur_hist.KolmogorovTest(base_hist)
         return json.dumps({'rc': 0, 'message': '', 'distance': p_value})
     except Exception, s:
-        return json.dump({'rc': 1, 'message': s})
+        return json.dumps({'rc': 1, 'distance': '0', 'message': s})
 
 if __name__ == '__main__':
     app.run(debug=False)
