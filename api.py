@@ -21,4 +21,4 @@ def compare():
         return json.dump({'rc': 1, 'message': s})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
