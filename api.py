@@ -17,8 +17,8 @@ def compare():
         base_hist = cur_file.get(all_paths.encode('ascii','ignore'))
         p_value = cur_hist.KolmogorovTest(base_hist)
         return json.dumps({'rc': 0, 'message': '', 'distance': 1 - p_value})
-    except Exception, s:
-        return json.dumps({'rc': 1, 'distance': None, 'message': s})
+    except Exception, error_message:
+        return json.dumps({'rc': 1, 'distance': None, 'message': error_message})
 
 if __name__ == '__main__':
     app.run(debug=False)
