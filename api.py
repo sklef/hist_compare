@@ -200,29 +200,6 @@ def compare():
         return json.dumps({'rc': 1, 'distance': None, 'message': error_message})
 
 
-
-@app.route('/compare')
-def compare():
-    first_file = request.args['first_hist']
-    second_file = request.args['second_hist']
-    histogram_path = request.args['path']
-    first_file_id = File.query.filter_by(path=first_file).first().id
-    second_file_id = File.query.filter_by(path=second_file).first().id
-    first_histogram_id = Histogram.query.filter_by(file_id=first_file_id, path=histogram_path).first().id
-    second_histogram_id = Histogram.query.filter_by(file_id=second_file_id, path=histogram_path).first().id
-    new_request = Request()
-    new_request.pattern = first_histogram_id
-    new_request.exemplar = second_histogram_id
-    new_request.time = db.func.now()
-    new_request.exemplar = second_file_id
-    new_request.user = 1
-    new_request.technique = 'chi square'
-    new_request.result = 0.5
-    db.session.add(new_request)
-    db.session.commit()
-    return request.args['path']
-
-
 def build_sample_db():
     
     db.drop_all()
