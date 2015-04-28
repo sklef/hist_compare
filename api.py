@@ -234,7 +234,7 @@ def compare():
         new_request.result = p_value
         db.session.add(new_request)
         db.session.commit()
-        return json.dumps({'rc': '0', 'message': '', 'distance': '0'})
+        return json.dumps({'rc': '0', 'message': '', 'distance': 1. - p_value})
     except Exception, error_message:
         return json.dumps({'rc': 1, 'distance': None, 'message': error_message})
 
