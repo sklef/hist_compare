@@ -14,7 +14,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # Create Flask application
 app = Flask(__name__)
 
-# Create dummy secrey key so we can use sessions
+# Create dummy secrey keyfro- so we can use sessions
 app.config['SECRET_KEY'] = '123456790'
 
 # Create in-memory database
@@ -77,7 +77,7 @@ class Histogram(db.Model):
 
 
 class File(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     path = db.Column(db.String(255))
     hist = db.relationship('Histogram', backref='file_name', lazy='dynamic')
 
@@ -172,18 +172,57 @@ def index():
 @app.route('/compare')
 def compare():
     try:
-        base_hist = request.args['base_hist']
-        cur_hist = request.args['cur_hist']
+        base_hist_location = request.args['base_hist']
+        cur_hist_location = request.args['cur_hist']
         all_paths = request.args['paths']
-        base_file = root_open(base_hist)
-        cur_file = root_open(cur_hist)
+        base_file = root_open(base_hist_location)
+        cur_file = root_open(cur_hist_location)
         cur_hist = cur_file.get(all_paths.encode('ascii','ignore'))
         base_hist = base_file.get(all_paths.encode('ascii','ignore'))
         p_value = cur_hist.KolmogorovTest(base_hist)
-        first_file_id = File.query.filter_by(path=base_hist).first().id
-        second_file_id = File.query.filter_by(path=cur_hist).first().id
-        first_histogram_id = Histogram.query.filter_by(file_id=first_file_id, path=all_paths).first().id
-        second_histogram_id = Histogram.query.filter_by(file_id=second_file_id, path=all_paths).first().id
+        first_file_id = File.query.filter_by(path=base_hist_location).all()
+        if not first_file_id:
+            new_hist_file = File(path=base_hist_location)
+            db.session.add(new_hist_file)
+            db.session.flush()
+            first_file_id = new_hist_file.id
+        elif len(first_file_id) > 1:
+            raise ValueError('Two identical files in database')
+        else:
+            first_file_id = first_file_id[0].id
+        second_file_id = File.query.filter_by(path=cur_hist_location).all()
+        if not second_file_id:
+            new_hist_file = File(path=cur_hist_location)
+            db.session.add(new_hist_file)
+            db.session.flush()
+            second_file_id = new_hist_file.id
+        elif len(second_file_id) > 1:
+            raise ValueError('Two identical files in database')
+        else:
+            second_file_id = second_file_id[0].id
+        
+        first_histogram_id = Histogram.query.filter_by(file_id=first_file_id, path=all_paths).all()
+        
+        if not first_histogram_id:
+            new_hist_object = Histogram(path=all_paths, file_id=first_file_id)
+            db.session.add(new_hist_object)
+            db.session.flush()
+            first_histogram_id = new_hist_object.id
+        elif len(first_histogram_id) > 1:
+            raise ValueError('Two identical histograms in database')
+        else:
+            first_histogram_id = first_histogram_id[0].id
+        
+        second_histogram_id = Histogram.query.filter_by(file_id=second_file_id, path=all_paths).all()
+        if not second_histogram_id:
+            new_hist_object = Histogram(file_id=second_file_id, path=all_paths)
+            db.session.add(new_hist_object)
+            db.session.flush()
+            second_histogram_id = new_hist_object.id
+        elif len(second_histogram_id) > 1:
+            raise ValueError('Two identical histograms in database')
+        else:
+            second_histogram_id = second_histogram_id[0].id
         new_request = Request()
         new_request.pattern = first_histogram_id
         new_request.exemplar = second_histogram_id
@@ -195,7 +234,7 @@ def compare():
         new_request.result = p_value
         db.session.add(new_request)
         db.session.commit()
-        return json.dumps({'rc': 0, 'message': '', 'distance': 1 - p_value})
+        return json.dumps({'rc': '0', 'message': '', 'distance': '0'})
     except Exception, error_message:
         return json.dumps({'rc': 1, 'distance': None, 'message': error_message})
 
