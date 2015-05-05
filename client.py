@@ -3,10 +3,11 @@ import requests
 
 HOST_NAME = 'http://localhost:5000/compare'
 
-def hist_compare(first_file, second_file, all_paths):
+def hist_compare(first_file, second_file, all_paths, technique=u'Kolmogorov-Smirnov'):
     all_pvalues = []
     for path in all_paths:
-        payload = {'base_hist': first_file , 'cur_hist': second_file, 'paths': path }
+        payload = {'base_hist': first_file , 'cur_hist': second_file, 'paths': path,
+                   'technique': technique, 'type': 'User'}
         result = requests.get(HOST_NAME, params=payload).text
         all_pvalues.append(result)
     return all_pvalues

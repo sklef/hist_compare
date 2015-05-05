@@ -32,7 +32,6 @@ class User(db.Model):
     login = db.Column(db.String(80), unique=True)
     email = db.Column(db.String(120))
     password = db.Column(db.String(64))
-    requests = db.relationship('Request', backref='user_name', lazy='dynamic')
 
     # Flask-Login integration
     def is_authenticated(self):
@@ -53,12 +52,13 @@ class User(db.Model):
 
 
 class Request(db.Model):
+
     id = db.Column(db.Integer, primary_key=True)
-    user = db.Column(db.Integer, db.ForeignKey('user.id'))
     pattern = db.Column(db.Integer, db.ForeignKey('histogram.id'))
     exemplar = db.Column(db.Integer, db.ForeignKey('histogram.id'))
     result = db.Column(db.Float)
     time = db.Column(db.DateTime)
+    request_source = db.Column(db.String(64), db.ForeignKey('RequestType.id'))
     technique = db.Column(db.String(100), db.ForeignKey('technique.name'))
 
     def __unicode__(self):
@@ -66,6 +66,7 @@ class Request(db.Model):
 
 
 class Histogram(db.Model):
+
     id = db.Column(db.Integer, primary_key=True)
     path = db.Column(db.String(255))
     file_id = db.Column(db.Integer, db.ForeignKey('file.id'))
@@ -85,8 +86,20 @@ class File(db.Model):
         return self.path
 
 
+class RequestType(db.Model):
+
+    __tablename__ = 'RequestType'
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(64))
+    requests_type_relation = db.relationship('Request', backref='request_typ', lazy='dynamic')
+
+    def __unicode__(self):
+        return self.type
+
+
 class Technique(db.Model):
-    name = db.Column(db.String(100), primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64))
     technique_relation = db.relationship('Request', backref='used_technique', lazy='dynamic')
 
     def __unicode__(self):
@@ -108,7 +121,6 @@ class LoginForm(form.Form):
         if not check_password_hash(user.password, self.password.data):
         # to compare plain text passwords use
         # if user.password != self.password.data:
-            print self.password.data
             raise validators.ValidationError('Invalid password')
 
     def get_user(self):
@@ -172,14 +184,32 @@ def index():
 @app.route('/compare')
 def compare():
     try:
+        # Request Parameters Reading
         base_hist_location = request.args['base_hist']
         cur_hist_location = request.args['cur_hist']
         all_paths = request.args['paths']
-        base_file = root_open(base_hist_location)
-        cur_file = root_open(cur_hist_location)
-        cur_hist = cur_file.get(all_paths.encode('ascii','ignore'))
-        base_hist = base_file.get(all_paths.encode('ascii','ignore'))
-        p_value = cur_hist.KolmogorovTest(base_hist)
+        request_type = request.args['type']
+        technique = request.args['technique']
+
+        # Technique type checking
+        request_technique = Technique.query.filter_by(name=technique).all()
+        if not request_technique:
+            raise ValueError("No such technique")
+        elif len(request_technique) > 1:
+            raise ValueError("Two identical techniques")
+        else:
+            technique_id = request_technique[0].id
+
+        # Histograms checking
+        with root_open(base_hist_location) as base_file, root_open(cur_hist_location) as cur_file:
+            cur_hist = cur_file.get(all_paths.encode('ascii','ignore'))
+            base_hist = base_file.get(all_paths.encode('ascii','ignore'))
+            if technique == 'Kolmogorov-Smirnov':
+                p_value = cur_hist.KolmogorovTest(base_hist)
+            elif technique == 'Chi2Test':
+                p_value = cur_hist.Chi2Test(base_file)
+
+        # Root files information processing
         first_file_id = File.query.filter_by(path=base_hist_location).all()
         if not first_file_id:
             new_hist_file = File(path=base_hist_location)
@@ -200,9 +230,9 @@ def compare():
             raise ValueError('Two identical files in database')
         else:
             second_file_id = second_file_id[0].id
-        
+
+        # Histogram information processing
         first_histogram_id = Histogram.query.filter_by(file_id=first_file_id, path=all_paths).all()
-        
         if not first_histogram_id:
             new_hist_object = Histogram(path=all_paths, file_id=first_file_id)
             db.session.add(new_hist_object)
@@ -212,7 +242,6 @@ def compare():
             raise ValueError('Two identical histograms in database')
         else:
             first_histogram_id = first_histogram_id[0].id
-        
         second_histogram_id = Histogram.query.filter_by(file_id=second_file_id, path=all_paths).all()
         if not second_histogram_id:
             new_hist_object = Histogram(file_id=second_file_id, path=all_paths)
@@ -223,27 +252,35 @@ def compare():
             raise ValueError('Two identical histograms in database')
         else:
             second_histogram_id = second_histogram_id[0].id
+
+        # Request source processing
+        request_type = RequestType.query.filter_by(type=request_type).all()
+        if not request_type:
+            raise ValueError('No Such Request Type')
+        elif len(request_type) > 1:
+            raise ValueError('Two identical request types')
+        else:
+            request_type_id = request_type[0].id
         new_request = Request()
         new_request.pattern = first_histogram_id
         new_request.exemplar = second_histogram_id
         new_request.time = db.func.now()
         new_request.exemplar = second_file_id
-        # ToDo authorization
-        new_request.user = 1
-        new_request.technique = 'Kolmogorov-Smirnov'
+        new_request.request_source = request_type_id
+        new_request.technique = technique_id
         new_request.result = p_value
         db.session.add(new_request)
         db.session.commit()
-        return json.dumps({'rc': '0', 'message': '', 'distance': 1. - p_value})
+
+        return json.dumps({'rc': 0, 'message': '', 'distance': 1. - p_value})
     except Exception, error_message:
         return json.dumps({'rc': 1, 'distance': None, 'message': error_message})
 
 
 def build_sample_db():
-    
+    db.create_all()
     db.drop_all()
     db.create_all()
-     
     user = User()
     user.first_name = 'admin'
     user.last_name = 'admin'
@@ -251,22 +288,10 @@ def build_sample_db():
     user.email = user.login + "@example.com"
     user.password = generate_password_hash('admin')
     db.session.add(user)
-    db.session.commit()
-    request = Request()
-    db.session.add(request)
-    db.session.commit()
-    histogram = Histogram()
-    db.session.add(histogram)
-    db.session.commit()
-    new_file = File()
-    db.session.add(new_file)
-    db.session.commit()
-    technique = Technique()
-    technique.name = 'chi square'
-    anotherTechnique = Technique()
-    anotherTechnique.name = 'Kolmogorov-Smirnov'
-    db.session.add(technique)
-    db.session.add(anotherTechnique)
+    db.session.add(RequestType(type='User'))
+    db.session.add(RequestType(type='Bot'))
+    db.session.add(Technique(name='chi_square'))
+    db.session.add(Technique(name='Kolmogorov-Smirnov'))
     db.session.commit()
 
 
@@ -277,7 +302,6 @@ init_login()
 admin = admin.Admin(app, 'Anomaly Detection', index_view=AdminIndexView(), base_template='my_master.html')
 
 # Add view
-admin.add_view(ModelView(User, db.session))
 admin.add_view(ModelView(Request, db.session))
 admin.add_view(ModelView(Histogram, db.session))
 admin.add_view(ModelView(File, db.session))
