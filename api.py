@@ -1,21 +1,25 @@
 import os
 import json
+import hashlib
+
 from rootpy.io import root_open
+from wtforms import form, fields, validators
+from werkzeug.security import generate_password_hash, check_password_hash
+
 from flask import Flask, url_for, redirect, render_template, request
 from flask_sqlalchemy import SQLAlchemy
-from wtforms import form, fields, validators
 import flask_admin as admin
 import flask_login as login
 from flask_admin.contrib import sqla
 from flask_admin import helpers, expose
-from werkzeug.security import generate_password_hash, check_password_hash
 
+HASH_CHUNK_SIZE = 128
 
 # Create Flask application
 app = Flask(__name__)
 
 # Create dummy secrey keyfro- so we can use sessions
-app.config['SECRET_KEY'] = '123456790'
+app.config['SECRET_KEY'] = 'L46EIDJ2VX'
 
 # Create in-memory database
 app.config['DATABASE_FILE'] = 'db.sqlite'
@@ -79,6 +83,7 @@ class Histogram(db.Model):
 
 class File(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    md5_hash = db.Column(db.String(64))
     path = db.Column(db.String(255))
     hist = db.relationship('Histogram', backref='file_name', lazy='dynamic')
 
@@ -117,10 +122,7 @@ class LoginForm(form.Form):
         if user is None:
             raise validators.ValidationError('Invalid user')
 
-        # we're comparing the plaintext pw with the the hash from the db
         if not check_password_hash(user.password, self.password.data):
-        # to compare plain text passwords use
-        # if user.password != self.password.data:
             raise validators.ValidationError('Invalid password')
 
     def get_user(self):
@@ -167,8 +169,6 @@ class AdminIndexView(admin.AdminIndexView):
         self._template_args['form'] = form
         return super(AdminIndexView, self).index()
 
-    
-
     @expose('/logout/')
     def logout_view(self):
         login.logout_user()
@@ -181,6 +181,15 @@ def index():
     return render_template('index.html')
 
 
+def md5_sum_calculation(file_name):
+    hash_values = hashlib.md5()
+    with open(file_name, 'r') as file_object:
+        # Iterating over small chunks of file
+        for chunk in iter(lambda: file_object.read(HASH_CHUNK_SIZE), ''):
+            hash_values.update(chunk)
+    return hash_values.hexdigest()
+
+
 @app.route('/compare')
 def compare():
     try:
@@ -191,6 +200,15 @@ def compare():
         request_type = request.args['type']
         technique = request.args['technique']
 
+        # Processing request source
+        request_type = RequestType.query.filter_by(type=request_type).all()
+        if not request_type:
+            raise ValueError('No Such Request Type')
+        elif len(request_type) > 1:
+            raise ValueError('Two identical request types')
+        else:
+            request_type_id = request_type[0].id
+
         # Technique type checking
         request_technique = Technique.query.filter_by(name=technique).all()
         if not request_technique:
@@ -200,19 +218,11 @@ def compare():
         else:
             technique_id = request_technique[0].id
 
-        # Histograms checking
-        with root_open(base_hist_location) as base_file, root_open(cur_hist_location) as cur_file:
-            cur_hist = cur_file.get(all_paths.encode('ascii','ignore'))
-            base_hist = base_file.get(all_paths.encode('ascii','ignore'))
-            if technique == 'Kolmogorov-Smirnov':
-                p_value = cur_hist.KolmogorovTest(base_hist)
-            elif technique == 'Chi2Test':
-                p_value = cur_hist.Chi2Test(base_file)
-
         # Root files information processing
         first_file_id = File.query.filter_by(path=base_hist_location).all()
         if not first_file_id:
-            new_hist_file = File(path=base_hist_location)
+            new_hist_file = File(path=base_hist_location,
+                                 md5_hash=md5_sum_calculation(base_hist_location))
             db.session.add(new_hist_file)
             db.session.flush()
             first_file_id = new_hist_file.id
@@ -220,9 +230,11 @@ def compare():
             raise ValueError('Two identical files in database')
         else:
             first_file_id = first_file_id[0].id
+
         second_file_id = File.query.filter_by(path=cur_hist_location).all()
         if not second_file_id:
-            new_hist_file = File(path=cur_hist_location)
+            new_hist_file = File(path=cur_hist_location,
+                                 md5_hash=md5_sum_calculation(cur_hist_location))
             db.session.add(new_hist_file)
             db.session.flush()
             second_file_id = new_hist_file.id
@@ -253,14 +265,38 @@ def compare():
         else:
             second_histogram_id = second_histogram_id[0].id
 
-        # Request source processing
-        request_type = RequestType.query.filter_by(type=request_type).all()
-        if not request_type:
-            raise ValueError('No Such Request Type')
-        elif len(request_type) > 1:
-            raise ValueError('Two identical request types')
+        # Check if query already exists
+        previous_request = Request.query.filter_by(pattern=first_histogram_id,
+                                                   exemplar=second_histogram_id).all()
+
+        if previous_request:
+            last_request = previous_request[-1]
+            # Getting file name
+            pattern_file = File.query.filter_by(id=first_file_id).first()
+            pattern_file_location = pattern_file.path
+            pattern_file_hash = pattern_file.md5_hash
+            pattern_current_hash = md5_sum_calculation(pattern_file_location)
+            exemplar_file = File.query.filter_by(id=second_file_id).first()
+            exemplar_hash = exemplar_file.md5_hash
+            exemplar_file_location = exemplar_file.path
+            exemplar_current_hash = md5_sum_calculation(exemplar_file_location)
+            # Update hashes if they have changed
+            if exemplar_hash != exemplar_current_hash:
+                exemplar_file.md5_hash = exemplar_current_hash
+            elif pattern_file_hash != pattern_current_hash:
+                pattern_file.md5_hash = pattern_current_hash
+            else:
+                p_value = last_request.result
         else:
-            request_type_id = request_type[0].id
+            # Histograms checking
+            with root_open(base_hist_location) as base_file, root_open(cur_hist_location) as cur_file:
+                cur_hist = cur_file.get(all_paths.encode('ascii','ignore'))
+                base_hist = base_file.get(all_paths.encode('ascii','ignore'))
+                if technique == 'Kolmogorov-Smirnov':
+                    p_value = cur_hist.KolmogorovTest(base_hist)
+                elif technique == 'Chi2Test':
+                    p_value = cur_hist.Chi2Test(base_file)
+                    
         new_request = Request()
         new_request.pattern = first_histogram_id
         new_request.exemplar = second_histogram_id
@@ -308,12 +344,10 @@ admin.add_view(ModelView(File, db.session))
 
 
 if __name__ == '__main__':
-
     # Build a sample db on the fly, if one does not exist yet.
     app_dir = os.path.realpath(os.path.dirname(__file__))
     database_path = os.path.join(app_dir, app.config['DATABASE_FILE'])
     if not os.path.exists(database_path):
         build_sample_db()
-
     # Start app
     app.run(debug=True)
