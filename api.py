@@ -30,6 +30,7 @@ db = SQLAlchemy(app)
 
 # Create user model.
 class User(db.Model):
+
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(100))
     last_name = db.Column(db.String(100))
@@ -82,6 +83,7 @@ class Histogram(db.Model):
 
 
 class File(db.Model):
+
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     md5_hash = db.Column(db.String(64))
     path = db.Column(db.String(255))
@@ -103,6 +105,7 @@ class RequestType(db.Model):
 
 
 class Technique(db.Model):
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64))
     technique_relation = db.relationship('Request', backref='used_technique', lazy='dynamic')
@@ -113,6 +116,7 @@ class Technique(db.Model):
 
 # Define login and registration forms (for flask-login)
 class LoginForm(form.Form):
+
     login = fields.StringField(validators=[validators.required()])
     password = fields.PasswordField(validators=[validators.required()])
 
@@ -190,6 +194,113 @@ def md5_sum_calculation(file_name):
     return hash_values.hexdigest()
 
 
+def get_file_id(file_path):
+        file_query = File.query.filter_by(path=file_path).all()
+        if not file_query:
+            new_hist_file = File(path=file_path,
+                                 md5_hash=md5_sum_calculation(file_path))
+            db.session.add(new_hist_file)
+            db.session.flush()
+            file_id= new_hist_file.id
+        elif len(file_query) > 1:
+            raise ValueError('Two identical files in database')
+        else:
+            file_id = file_query[0].id
+        return file_id
+
+
+def get_histogram_id(hist_path, file_id):
+    histogram_query = Histogram.query.filter_by(file_id=file_id, path=hist_path).all()
+    if not histogram_query:
+        new_hist_object = Histogram(path=hist_path, file_id=file_id)
+        db.session.add(new_hist_object)
+        db.session.flush()
+        histogram_id = new_hist_object.id
+    elif len(file_id) > 1:
+        raise ValueError('Two identical histograms in database')
+    else:
+        histogram_id = histogram_query[0].id
+    return histogram_id
+
+
+def get_request_type_id(request_type):
+    request_type = RequestType.query.filter_by(type=request_type).all()
+    if not request_type:
+        raise ValueError('No Such Request Type')
+    elif len(request_type) > 1:
+        raise ValueError('Two identical request types')
+    else:
+        request_type_id = request_type[0].id
+    return request_type_id
+
+
+def get_technique_id(technique_name):
+    request_technique = Technique.query.filter_by(name=technique_name).all()
+    if not request_technique:
+        raise ValueError("No such technique")
+    elif len(request_technique) > 1:
+        raise ValueError("Two identical techniques")
+    else:
+        technique_id = request_technique[0].id
+    return technique_id
+
+
+def hist_checking(base_hist_location, cur_hist_location, path, technique):
+    with root_open(base_hist_location) as base_file, \
+            root_open(cur_hist_location) as cur_file:
+        cur_hist = cur_file.get(path.encode('ascii','ignore'))
+        base_hist = base_file.get(path.encode('ascii','ignore'))
+        if technique == 'Kolmogorov-Smirnov':
+            p_value = cur_hist.KolmogorovTest(base_hist)
+        elif technique == 'Chi2Test':
+            p_value = cur_hist.Chi2Test(base_file)
+    return p_value
+
+
+def save_request_result(first_histogram_id, second_histogram_id,
+                        request_type_id, technique_id, p_value):
+    new_request = Request()
+    new_request.pattern = first_histogram_id
+    new_request.exemplar = second_histogram_id
+    new_request.time = db.func.now()
+    new_request.request_source = request_type_id
+    new_request.technique = technique_id
+    new_request.result = p_value
+    db.session.add(new_request)
+    db.session.commit()
+
+
+def previous_request_processing(last_request):
+    first_hist = Histogram.query.get(last_request.pattern)
+    second_hist = Histogram.query.get(last_request.exemplar)
+    technique_id = last_request.technique
+    technique = Technique.query.get(technique_id)
+    first_file_id = first_hist.file_id
+    second_file_id = second_hist.file_id
+    first_file = File.query.get(first_file_id)
+    second_file = File.query.get(second_file_id)
+    base_hist_location = first_file.path
+    cur_hist_location = second_file.path
+    path = first_hist.path
+
+    pattern_file = File.query.filter_by(id=first_file_id).first()
+    pattern_file_location = pattern_file.path
+    pattern_file_hash = pattern_file.md5_hash
+    pattern_current_hash = md5_sum_calculation(pattern_file_location)
+    exemplar_file = File.query.filter_by(id=second_file_id).first()
+    exemplar_hash = exemplar_file.md5_hash
+    exemplar_file_location = exemplar_file.path
+    exemplar_current_hash = md5_sum_calculation(exemplar_file_location)
+    # Update hashes if they have changed
+    if (exemplar_hash == exemplar_current_hash and
+        pattern_file_hash == pattern_current_hash):
+        p_value = last_request.result
+    else:
+        hist_checking(base_hist_location, cur_hist_location, path, technique)
+        p_value = last_request.result
+    return p_value
+
+
 @app.route('/compare')
 def compare():
     try:
@@ -200,117 +311,38 @@ def compare():
         request_type = request.args['type']
         technique = request.args['technique']
 
-        # Processing request source
-        request_type = RequestType.query.filter_by(type=request_type).all()
-        if not request_type:
-            raise ValueError('No Such Request Type')
-        elif len(request_type) > 1:
-            raise ValueError('Two identical request types')
-        else:
-            request_type_id = request_type[0].id
-
-        # Technique type checking
-        request_technique = Technique.query.filter_by(name=technique).all()
-        if not request_technique:
-            raise ValueError("No such technique")
-        elif len(request_technique) > 1:
-            raise ValueError("Two identical techniques")
-        else:
-            technique_id = request_technique[0].id
-
-        # Root files information processing
-        first_file_id = File.query.filter_by(path=base_hist_location).all()
-        if not first_file_id:
-            new_hist_file = File(path=base_hist_location,
-                                 md5_hash=md5_sum_calculation(base_hist_location))
-            db.session.add(new_hist_file)
-            db.session.flush()
-            first_file_id = new_hist_file.id
-        elif len(first_file_id) > 1:
-            raise ValueError('Two identical files in database')
-        else:
-            first_file_id = first_file_id[0].id
-
-        second_file_id = File.query.filter_by(path=cur_hist_location).all()
-        if not second_file_id:
-            new_hist_file = File(path=cur_hist_location,
-                                 md5_hash=md5_sum_calculation(cur_hist_location))
-            db.session.add(new_hist_file)
-            db.session.flush()
-            second_file_id = new_hist_file.id
-        elif len(second_file_id) > 1:
-            raise ValueError('Two identical files in database')
-        else:
-            second_file_id = second_file_id[0].id
-
-        # Histogram information processing
-        first_histogram_id = Histogram.query.filter_by(file_id=first_file_id, path=all_paths).all()
-        if not first_histogram_id:
-            new_hist_object = Histogram(path=all_paths, file_id=first_file_id)
-            db.session.add(new_hist_object)
-            db.session.flush()
-            first_histogram_id = new_hist_object.id
-        elif len(first_histogram_id) > 1:
-            raise ValueError('Two identical histograms in database')
-        else:
-            first_histogram_id = first_histogram_id[0].id
-        second_histogram_id = Histogram.query.filter_by(file_id=second_file_id, path=all_paths).all()
-        if not second_histogram_id:
-            new_hist_object = Histogram(file_id=second_file_id, path=all_paths)
-            db.session.add(new_hist_object)
-            db.session.flush()
-            second_histogram_id = new_hist_object.id
-        elif len(second_histogram_id) > 1:
-            raise ValueError('Two identical histograms in database')
-        else:
-            second_histogram_id = second_histogram_id[0].id
-
+        request_type_id = get_request_type_id(request_type)
+        technique_id = get_technique_id(technique)
+        first_file_id = get_file_id(base_hist_location)
+        second_file_id = get_file_id(cur_hist_location)
+        first_histogram_id = get_histogram_id(first_file_id, all_paths)
+        second_histogram_id = get_histogram_id(second_file_id, all_paths)
         # Check if query already exists
         previous_request = Request.query.filter_by(pattern=first_histogram_id,
                                                    exemplar=second_histogram_id).all()
-
         if previous_request:
-            last_request = previous_request[-1]
-            # Getting file name
-            pattern_file = File.query.filter_by(id=first_file_id).first()
-            pattern_file_location = pattern_file.path
-            pattern_file_hash = pattern_file.md5_hash
-            pattern_current_hash = md5_sum_calculation(pattern_file_location)
-            exemplar_file = File.query.filter_by(id=second_file_id).first()
-            exemplar_hash = exemplar_file.md5_hash
-            exemplar_file_location = exemplar_file.path
-            exemplar_current_hash = md5_sum_calculation(exemplar_file_location)
-            # Update hashes if they have changed
-            if exemplar_hash != exemplar_current_hash:
-                exemplar_file.md5_hash = exemplar_current_hash
-            elif pattern_file_hash != pattern_current_hash:
-                pattern_file.md5_hash = pattern_current_hash
-            else:
-                p_value = last_request.result
+            previous_request_processing(previous_request[-1])
         else:
-            # Histograms checking
-            with root_open(base_hist_location) as base_file, root_open(cur_hist_location) as cur_file:
-                cur_hist = cur_file.get(all_paths.encode('ascii','ignore'))
-                base_hist = base_file.get(all_paths.encode('ascii','ignore'))
-                if technique == 'Kolmogorov-Smirnov':
-                    p_value = cur_hist.KolmogorovTest(base_hist)
-                elif technique == 'Chi2Test':
-                    p_value = cur_hist.Chi2Test(base_file)
-                    
-        new_request = Request()
-        new_request.pattern = first_histogram_id
-        new_request.exemplar = second_histogram_id
-        new_request.time = db.func.now()
-        new_request.exemplar = second_file_id
-        new_request.request_source = request_type_id
-        new_request.technique = technique_id
-        new_request.result = p_value
-        db.session.add(new_request)
-        db.session.commit()
-
+            p_value = hist_checking(base_hist_location, cur_hist_location, all_paths, technique)
+        save_request_result(first_histogram_id, second_histogram_id,
+                             request_type_id, technique_id, p_value)
         return json.dumps({'rc': 0, 'message': '', 'distance': 1. - p_value})
     except Exception, error_message:
         return json.dumps({'rc': 1, 'distance': None, 'message': error_message})
+
+
+@app.route('/check')
+def check():
+    try:
+        base_hist_location = request.args['base_hist']
+        cur_hist_location = request.args['cur_hist']
+        all_paths = request.args['paths']
+        request_type = request.args['type']
+        technique = request.args['technique']
+        previous_request = Request.query.filter_by(pattern=first_histogram_id,
+                                                   exemplar=second_histogram_id).all()
+
+
 
 
 def build_sample_db():
