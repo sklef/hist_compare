@@ -25,17 +25,21 @@ export LD_LIBRARY_PATH=$ROOTSYS/lib:$PYTHONDIR/lib:$LD_LIBRARY_PATH
 export PYTHONPATH=$ROOTSYS/lib:$PYTHONPATH
 ```
 
-2) Install rootpy
+2) Install service
 ```
-git clone git://github.com/rootpy/rootpy.git
+[sudo] python setup.py install
+```
 
-sudo python setup.py install
+3)For starting server
 ```
-3) Install flask
+python api.py
 ```
-pip install Flask
+
+4) Example
 ```
-4) Install request-python
-```
-pip install requests
+from hist_compare.client import hist_compare
+first_file = 'default_1.root'
+second_file = 'BrunelDaVinci_FULL_134363_00021387.root'
+all_paths = ['Timing/OverallEventProcTime/overallTime']
+print hist_compare(first_file, second_file, all_paths)
 ```
