@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import hashlib
+import os.path, time
+import datetime
 from rootpy.io import root_open
 from api import db
 from db_models import Histogram, File, Request, RequestType, Technique, User
@@ -17,19 +19,24 @@ def md5_sum_calculation(file_name):
     return hash_values.hexdigest()
 
 
+def modification_date(filename):
+    t = os.path.getmtime(filename)
+    return datetime.datetime.fromtimestamp(t)
+
+
 def get_file_id(file_path):
-        file_query = File.query.filter_by(path=file_path).all()
-        if not file_query:
-            new_hist_file = File(path=file_path,
-                                 md5_hash=md5_sum_calculation(file_path))
-            db.session.add(new_hist_file)
-            db.session.flush()
-            file_id= new_hist_file.id
-        elif len(file_query) > 1:
-            raise ValueError('Two identical files in database')
-        else:
-            file_id = file_query[0].id
-        return file_id
+    file_query = File.query.filter_by(path=file_path).all()
+    if not file_query:
+        new_hist_file = File(path=file_path,
+                             last_changes=modification_date(file_path))
+        db.session.add(new_hist_file)
+        db.session.flush()
+        file_id= new_hist_file.id
+    elif len(file_query) > 1:
+        raise ValueError('Two identical files in database')
+    else:
+        file_id = file_query[0].id
+    return file_id
 
 
 def get_histogram_id(hist_path, file_id):
@@ -39,7 +46,7 @@ def get_histogram_id(hist_path, file_id):
         db.session.add(new_hist_object)
         db.session.flush()
         histogram_id = new_hist_object.id
-    elif len(file_id) > 1:
+    elif len(histogram_query) > 1:
         raise ValueError('Two identical histograms in database')
     else:
         histogram_id = histogram_query[0].id
@@ -66,18 +73,6 @@ def get_technique_id(technique_name):
     else:
         technique_id = request_technique[0].id
     return technique_id
-
-
-def hist_checking(base_hist_location, cur_hist_location, path, technique):
-    with root_open(base_hist_location) as base_file, \
-            root_open(cur_hist_location) as cur_file:
-        cur_hist = cur_file.get(path.encode('ascii','ignore'))
-        base_hist = base_file.get(path.encode('ascii','ignore'))
-        if technique == 'Kolmogorov-Smirnov':
-            p_value = cur_hist.KolmogorovTest(base_hist)
-        elif technique == 'Chi2Test':
-            p_value = cur_hist.Chi2Test(base_file)
-    return 1. - p_value
 
 
 def save_request_result(first_histogram_id, second_histogram_id,
@@ -108,15 +103,15 @@ def previous_request_processing(last_request):
 
     pattern_file = File.query.filter_by(id=first_file_id).first()
     pattern_file_location = pattern_file.path
-    pattern_file_hash = pattern_file.md5_hash
-    pattern_current_hash = md5_sum_calculation(pattern_file_location)
+    pattern_file_last_changes = pattern_file.last_changes
+    pattern_current_last_changes = modification_date(file_path)(pattern_file_location)
     exemplar_file = File.query.filter_by(id=second_file_id).first()
-    exemplar_hash = exemplar_file.md5_hash
+    exemplar_last_changes = exemplar_file.last_changes
     exemplar_file_location = exemplar_file.path
-    exemplar_current_hash = md5_sum_calculation(exemplar_file_location)
-    # Update hashes if they have changed
-    if (exemplar_hash == exemplar_current_hash
-        and pattern_file_hash == pattern_current_hash):
+    exemplar_current_last_changes = modification_date(file_path)(exemplar_file_location)
+    # Update modification dates
+    if (pattern_file_last_changes == pattern_current_last_changes
+        and exemplar_last_changes == exemplar_current_last_changes):
         distance = last_request.result
     else:
         hist_checking(base_hist_location, cur_hist_location, path, technique)

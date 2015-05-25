@@ -2,6 +2,7 @@
 
 from api import db
 
+
 class User(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
@@ -58,7 +59,7 @@ class Histogram(db.Model):
 class File(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    md5_hash = db.Column(db.String(64))
+    last_changes = db.Column(db.DateTime)
     path = db.Column(db.String(255))
     hist = db.relationship('Histogram', backref='file_name', lazy='dynamic')
 

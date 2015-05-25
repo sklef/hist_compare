@@ -25,6 +25,6 @@ def hist_compare(first_file, second_file, all_paths, technique=u'Kolmogorov-Smir
 
 if __name__ == '__main__':
     first_file = 'default_1.root'
-    second_file = 'default_1.root'
+    second_file = 'BrunelDaVinci_FULL_134363_00021387.root'
     all_paths = ['Timing/OverallEventProcTime/overallTime']
     print hist_compare(first_file, second_file, all_paths)
