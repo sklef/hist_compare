@@ -104,11 +104,11 @@ def previous_request_processing(last_request):
     pattern_file = File.query.filter_by(id=first_file_id).first()
     pattern_file_location = pattern_file.path
     pattern_file_last_changes = pattern_file.last_changes
-    pattern_current_last_changes = modification_date(file_path)(pattern_file_location)
+    pattern_current_last_changes = modification_date(pattern_file_location)(pattern_file_location)
     exemplar_file = File.query.filter_by(id=second_file_id).first()
     exemplar_last_changes = exemplar_file.last_changes
     exemplar_file_location = exemplar_file.path
-    exemplar_current_last_changes = modification_date(file_path)(exemplar_file_location)
+    exemplar_current_last_changes = modification_date(exemplar_file_location)(exemplar_file_location)
     # Update modification dates
     if (pattern_file_last_changes == pattern_current_last_changes
         and exemplar_last_changes == exemplar_current_last_changes):
@@ -147,5 +147,3 @@ def build_sample_db():
     db.session.add(Technique(name='chi_square'))
     db.session.add(Technique(name='Kolmogorov-Smirnov'))
     db.session.commit()
-
-
