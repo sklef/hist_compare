@@ -8,22 +8,15 @@ from flask_sqlalchemy import SQLAlchemy
 # Create Flask application
 app = Flask(__name__)
 
-# Create dummy secrey keyfro- so we can use sessions
-app.config['SECRET_KEY'] = 'L46EIDJ2VX'
-
-# Create in-memory database
-app.config['DATABASE_FILE'] = 'db.sqlite'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + app.config['DATABASE_FILE']
-app.config['SQLALCHEMY_ECHO'] = True
+# Loads data base
 db = SQLAlchemy(app)
 
 
-import logic
+import utils
 import db_models
 from views import AdminIndexView
 
-#
-# Create admin
+
 admin = admin.Admin(app, 'Anomaly Detection', index_view=AdminIndexView(), base_template='my_master.html')
 
 # Add view
@@ -37,6 +30,6 @@ if __name__ == '__main__':
     app_dir = os.path.realpath(os.path.dirname(__file__))
     database_path = os.path.join(app_dir, app.config['DATABASE_FILE'])
     if not os.path.exists(database_path):
-        logic.build_sample_db()
+        utils.build_sample_db()
     # Start app
     app.run(debug=True)

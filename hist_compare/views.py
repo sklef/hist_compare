@@ -1,4 +1,4 @@
-import logic
+import utils
 import db_models
 import json
 import flask_admin as admin
@@ -22,20 +22,20 @@ def compare():
         request_type = request.args['type']
         technique = request.args['technique']
 
-        request_type_id = logic.get_request_type_id(request_type)
-        technique_id = logic.get_technique_id(technique)
-        first_file_id = logic.get_file_id(base_hist_location)
-        second_file_id = logic.get_file_id(cur_hist_location)
-        first_histogram_id = logic.get_histogram_id(first_file_id, all_paths)
-        second_histogram_id = logic.get_histogram_id(second_file_id, all_paths)
+        request_type_id = utils.get_request_type_id(request_type)
+        technique_id = utils.get_technique_id(technique)
+        first_file_id = utils.get_file_id(base_hist_location)
+        second_file_id = utils.get_file_id(cur_hist_location)
+        first_histogram_id = utils.get_histogram_id(first_file_id, all_paths)
+        second_histogram_id = utils.get_histogram_id(second_file_id, all_paths)
         # Check if query already exists
         previous_request = db_models.Request.query.filter_by(pattern=first_histogram_id,
                                                    exemplar=second_histogram_id, technique=technique).all()
         if previous_request:
-            logic.previous_request_processing(previous_request[-1])
+            utils.previous_request_processing(previous_request[-1])
         else:
-            distance = logic.hist_checking(base_hist_location, cur_hist_location, all_paths, technique)
-        logic.save_request_result(first_histogram_id, second_histogram_id,
+            distance = utils.hist_checking(base_hist_location, cur_hist_location, all_paths, technique)
+        utils.save_request_result(first_histogram_id, second_histogram_id,
                             request_type_id, technique_id, distance)
         return json.dumps({'rc': 0, 'message': '', 'distance': distance})
     except Exception, error_message:
@@ -50,8 +50,8 @@ def check():
         all_paths = request.args['paths']
         technique = request.args['technique']
 
-        first_histogram_id = logic.get_histogram_id(all_paths, base_hist_location)
-        second_histogram_id = logic.get_histogram_id(all_paths, cur_hist_location)
+        first_histogram_id = utils.get_histogram_id(all_paths, base_hist_location)
+        second_histogram_id = utils.get_histogram_id(all_paths, cur_hist_location)
         previous_request = db_models.Request.query.filter_by(pattern=first_histogram_id,
                                                    exemplar=second_histogram_id, technique=technique).all()
         if previous_request:
