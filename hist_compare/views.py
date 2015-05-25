@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import utils
 import db_models
 import json

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import hashlib
 from rootpy.io import root_open
 from api import db

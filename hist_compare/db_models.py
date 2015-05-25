@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from api import db
 
 class User(db.Model):

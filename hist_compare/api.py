@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import os
 import flask_admin as admin
 from flask_admin.contrib import sqla
