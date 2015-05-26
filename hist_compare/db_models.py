@@ -38,7 +38,7 @@ class Request(db.Model):
     result = db.Column(db.Float)
     time = db.Column(db.DateTime)
     request_source = db.Column(db.String(64), db.ForeignKey('RequestType.id'))
-    technique = db.Column(db.String(100), db.ForeignKey('technique.name'))
+    technique = db.Column(db.String(100), db.ForeignKey('technique.id'))
 
     def __unicode__(self):
         return self.id
@@ -48,7 +48,7 @@ class Histogram(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     path = db.Column(db.String(255))
-    file_id = db.Column(db.Integer, db.ForeignKey('file.id'))
+    file_id = db.Column(db.String, db.ForeignKey('file.id'))
     pattern = db.relationship('Request', backref='pattern_name', primaryjoin='Request.pattern == Histogram.id')
     example = db.relationship('Request', backref='exemplar_name', primaryjoin='Request.exemplar == Histogram.id')
 

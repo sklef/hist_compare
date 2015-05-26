@@ -21,8 +21,8 @@ def compare():
         technique_id = utils.get_technique_id(technique)
         first_file_id = utils.get_file_id(base_hist_location)
         second_file_id = utils.get_file_id(cur_hist_location)
-        first_histogram_id = utils.get_histogram_id(first_file_id, all_paths)
-        second_histogram_id = utils.get_histogram_id(second_file_id, all_paths)
+        first_histogram_id = utils.get_histogram_id(all_paths, first_file_id)
+        second_histogram_id = utils.get_histogram_id(all_paths, second_file_id)
         # Check if query already exists
         previous_request = db_models.Request.query.filter_by(pattern=first_histogram_id,
                                                              exemplar=second_histogram_id, technique=technique).all()
@@ -34,7 +34,7 @@ def compare():
                                   request_type_id, technique_id, distance)
         return json.dumps({'rc': 0, 'message': '', 'distance': distance})
     except Exception, error_message:
-        return json.dumps({'rc': 1, 'distance': None, 'message': error_message})
+        return json.dumps({'rc': 1, 'distance': None, 'message': str(error_message)})
 
 
 def check():
