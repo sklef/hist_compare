@@ -126,8 +126,8 @@ def hist_checking(base_hist_location, cur_hist_location, path, technique):
         base_hist = base_file.get(path.encode('ascii','ignore'))
         if technique == 'Kolmogorov-Smirnov':
             p_value = cur_hist.KolmogorovTest(base_hist)
-        elif technique == 'Chi2Test':
-            p_value = cur_hist.Chi2Test(base_file)
+        elif technique == 'chi_square':
+            p_value = cur_hist.Chi2Test(base_hist)
     return 1. - p_value
 
 
