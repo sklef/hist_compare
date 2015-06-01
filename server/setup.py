@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 
 setup(
-    name='hist_compare',
+    name='hist_compare_server',
     url='https://github.com/sklef/hist_compare',
     author='Dmitry Smolyakov',
     version='0.1.0',
