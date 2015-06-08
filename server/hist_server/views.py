@@ -54,7 +54,7 @@ def check():
         else:
             return json.dumps({'time':None})
     except Exception, error_message:
-        return json.dumps({'message': error_message})
+        return json.dumps({'message': str(error_message)})
 
 
 # Flask views
