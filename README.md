@@ -29,7 +29,7 @@ python api.py
 ```
 
 
-For client installation move to ./client:
+For client installation move to ./client and run:
 ```
 [sudo] python setup.py install
 ```
