@@ -25,7 +25,8 @@ def compare():
         second_histogram_id = utils.get_histogram_id(all_paths, second_file_id)
         # Check if query already exists
         previous_request = db_models.Request.query.filter_by(pattern=first_histogram_id,
-                                                             exemplar=second_histogram_id, technique=technique).all()
+                                                             exemplar=second_histogram_id,
+                                                             technique=technique).order_by(db_models.Request.time).all()
         if previous_request:
             utils.previous_request_processing(previous_request[-1])
         else:
