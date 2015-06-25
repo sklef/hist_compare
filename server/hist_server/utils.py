@@ -4,7 +4,7 @@ import hashlib
 import os.path, time
 import datetime
 from rootpy.io import root_open
-from api import db
+from app import db
 from db_models import Histogram, File, Request, RequestType, Technique, User
 from werkzeug.security import generate_password_hash
 HASH_CHUNK_SIZE = 256

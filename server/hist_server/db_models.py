@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from api import db
+from app import db
 
 
 class User(db.Model):
@@ -38,7 +38,7 @@ class Histogram(db.Model):
     pattern = db.relationship('Request', backref='pattern_name', primaryjoin='Request.pattern == Histogram.id')
     example = db.relationship('Request', backref='exemplar_name', primaryjoin='Request.exemplar == Histogram.id')
 
-    def __unicode__(self):
+    def __str__(self):
         return self.path
 
 
@@ -49,7 +49,7 @@ class File(db.Model):
     path = db.Column(db.String(255))
     hist = db.relationship('Histogram', backref='file_name', lazy='dynamic')
 
-    def __unicode__(self):
+    def __str__(self):
         return self.path
 
 
@@ -60,7 +60,7 @@ class RequestType(db.Model):
     type = db.Column(db.String(64))
     requests_type_relation = db.relationship('Request', backref='request_typ', lazy='dynamic')
 
-    def __unicode__(self):
+    def __str__(self):
         return self.type
 
 
