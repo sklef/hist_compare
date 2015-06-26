@@ -97,7 +97,7 @@ def previous_request_processing(last_request):
     second_file_id = second_hist.file_id
     first_file = File.query.get(first_file_id)
     second_file = File.query.get(second_file_id)
-    base_hist_location = first_file.path
+    control_hist_location = first_file.path
     cur_hist_location = second_file.path
     path = first_hist.path
 
@@ -114,20 +114,20 @@ def previous_request_processing(last_request):
         and exemplar_last_changes == exemplar_current_last_changes):
         distance = last_request.result
     else:
-        hist_checking(base_hist_location, cur_hist_location, path, technique)
+        hist_checking(control_hist_location, cur_hist_location, path, technique)
         distance = last_request.result
     return distance
 
 
-def hist_checking(base_hist_location, cur_hist_location, path, technique):
-    with root_open(base_hist_location) as base_file, \
+def hist_checking(control_hist_location, cur_hist_location, path, technique):
+    with root_open(control_hist_location) as control_file, \
             root_open(cur_hist_location) as cur_file:
         cur_hist = cur_file.get(path.encode('ascii','ignore'))
-        base_hist = base_file.get(path.encode('ascii','ignore'))
+        control_hist = control_file.get(path.encode('ascii','ignore'))
         if technique == 'Kolmogorov-Smirnov':
-            p_value = cur_hist.KolmogorovTest(base_hist)
+            p_value = cur_hist.KolmogorovTest(control_hist)
         elif technique == 'chi_square':
-            p_value = cur_hist.Chi2Test(base_hist)
+            p_value = cur_hist.Chi2Test(control_hist)
     return 1. - p_value
 
 
