@@ -3,12 +3,12 @@
 import os
 import flask_admin as admin
 from flask_admin.contrib import sqla
-from flask import Flask, request
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
 # Create Flask application
 app = Flask(__name__)
-app.config.from_envvar('TOKENMANAGER_CONFIG')
+app.config.from_envvar('HISTCOMPARE_CONFIG')
 # Loads data base
 db = SQLAlchemy(app)
 

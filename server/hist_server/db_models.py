@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from api import db
+from app import db
 
 
 class User(db.Model):
@@ -12,20 +12,6 @@ class User(db.Model):
     email = db.Column(db.String(120))
     password = db.Column(db.String(64))
 
-    # Flask-Login integration
-    def is_authenticated(self):
-        return True
-
-    def is_active(self):
-        return True
-
-    def is_anonymous(self):
-        return False
-
-    def get_id(self):
-        return self.id
-
-    # Required for administrative interface
     def __unicode__(self):
         return self.first_name
 
@@ -38,7 +24,7 @@ class Request(db.Model):
     result = db.Column(db.Float)
     time = db.Column(db.DateTime)
     request_source = db.Column(db.String(64), db.ForeignKey('RequestType.id'))
-    technique = db.Column(db.String(100), db.ForeignKey('technique.name'))
+    technique = db.Column(db.String(100), db.ForeignKey('technique.id'))
 
     def __unicode__(self):
         return self.id
@@ -48,11 +34,11 @@ class Histogram(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     path = db.Column(db.String(255))
-    file_id = db.Column(db.Integer, db.ForeignKey('file.id'))
+    file_id = db.Column(db.String, db.ForeignKey('file.id'))
     pattern = db.relationship('Request', backref='pattern_name', primaryjoin='Request.pattern == Histogram.id')
     example = db.relationship('Request', backref='exemplar_name', primaryjoin='Request.exemplar == Histogram.id')
 
-    def __unicode__(self):
+    def __str__(self):
         return self.path
 
 
@@ -63,7 +49,7 @@ class File(db.Model):
     path = db.Column(db.String(255))
     hist = db.relationship('Histogram', backref='file_name', lazy='dynamic')
 
-    def __unicode__(self):
+    def __str__(self):
         return self.path
 
 
@@ -74,7 +60,7 @@ class RequestType(db.Model):
     type = db.Column(db.String(64))
     requests_type_relation = db.relationship('Request', backref='request_typ', lazy='dynamic')
 
-    def __unicode__(self):
+    def __str__(self):
         return self.type
 
 
